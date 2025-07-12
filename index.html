@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Playable Nonogram</title>
+  <title>Nonogram From Photo</title>
   <style>
     body {
       font-family: sans-serif;
@@ -76,12 +76,13 @@
   </style>
 </head>
 <body>
-  <h1>Playable Nonogram</h1>
+  <h1>Nonogram From Photo</h1>
   <div id="controls">
     <input type="file" id="imagePicker" accept="image/*" />
+    <br><br>
     <input type="number" id="boardWidth" placeholder="Board width (e.g. 10)" />
-    <button onclick="generateNonogram()">Generate Nonogram</button>
-    <button onclick="revealAnswer()">Reveal Answer</button>
+    <button onclick="generateNonogram()">Generate</button>
+    <button onclick="revealAnswer()">Reveal</button>
   </div>
 
   <canvas id="hiddenCanvas"></canvas>
@@ -215,22 +216,31 @@
     }
 
     function displayBoard() {
-      const boardDiv = document.getElementById('board');
-      boardDiv.innerHTML = '';
-      boardDiv.style.gridTemplateColumns = `repeat(${boardWidth}, ${tileSize}px)`;
-      boardDiv.style.width = boardWidth * tileSize + 'px';
-      boardDiv.style.height = boardHeight * tileSize + 'px';
+        const boardDiv = document.getElementById('board');
+        boardDiv.innerHTML = '';
+        boardDiv.style.gridTemplateColumns = `repeat(${boardWidth}, ${tileSize}px)`;
+        boardDiv.style.width = boardWidth * tileSize + 'px';
+        boardDiv.style.height = boardHeight * tileSize + 'px';
 
-      for (let y = 0; y < boardHeight; y++) {
-        for (let x = 0; x < boardWidth; x++) {
-          const div = document.createElement('div');
-          div.className = 'tile';
-          div.dataset.x = x;
-          div.dataset.y = y;
-          div.addEventListener('click', toggleTile);
-          boardDiv.appendChild(div);
+        for (let y = 0; y < boardHeight; y++) {
+            for (let x = 0; x < boardWidth; x++) {
+            const div = document.createElement('div');
+            div.className = 'tile';
+            div.dataset.x = x;
+            div.dataset.y = y;
+            div.addEventListener('click', toggleTile);
+
+            // Add darker borders for every 5th tile (chunks)
+            if ((x + 1) % 5 === 0 && x !== boardWidth - 1) {
+                div.style.borderRight = '2px solid #444';
+            }
+            if ((y + 1) % 5 === 0 && y !== boardHeight - 1) {
+                div.style.borderBottom = '2px solid #444';
+            }
+
+            boardDiv.appendChild(div);
+            }
         }
-      }
     }
 
     function toggleTile(e) {
