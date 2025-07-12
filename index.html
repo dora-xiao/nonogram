@@ -19,7 +19,6 @@
       grid-template-columns: auto 1fr;
       grid-template-rows: auto 1fr;
       gap: 0px;
-      position: relative;
     }
 
     #colClues {
@@ -28,7 +27,6 @@
       display: grid;
       justify-content: start;
       align-items: end;
-      z-index: 2;
     }
 
     #rowClues {
@@ -37,7 +35,6 @@
       display: flex;
       flex-direction: column;
       align-items: flex-end;
-      z-index: 2;
     }
 
     #boardWrapper {
@@ -48,17 +45,7 @@
 
     #board {
       display: grid;
-      z-index: 2;
       position: relative;
-    }
-
-    #solutionImage {
-      position: absolute;
-      top: 0;
-      left: 0;
-      z-index: 1;
-      display: none;
-      image-rendering: pixelated;
     }
 
     .tile {
@@ -74,10 +61,6 @@
       background-color: grey;
     }
 
-    .tile.solution {
-      background-color: limegreen;
-    }
-
     .clue {
       font-size: 11px;
       text-align: right;
@@ -85,11 +68,10 @@
       overflow: hidden;
       text-overflow: ellipsis;
       padding-right: 2px;
-      vertical-align: middle;
     }
 
-    canvas, #solutionImage {
-      pointer-events: none;
+    canvas {
+      display: none;
     }
   </style>
 </head>
@@ -102,13 +84,12 @@
     <button onclick="revealAnswer()">Reveal Answer</button>
   </div>
 
-  <canvas id="hiddenCanvas" style="display:none;"></canvas>
+  <canvas id="hiddenCanvas"></canvas>
 
   <div id="nonogramArea">
     <div id="colClues"></div>
     <div id="rowClues"></div>
     <div id="boardWrapper">
-      <img id="solutionImage" />
       <div id="board"></div>
     </div>
   </div>
@@ -118,7 +99,8 @@
     let playerBoard = [];
     let boardWidth = 0;
     let boardHeight = 0;
-    let tileSize = 25;
+    const tileSize = 25;
+    let colorData = [];
 
     function generateNonogram() {
       const fileInput = document.getElementById('imagePicker');
@@ -139,40 +121,34 @@
         canvas.height = boardHeight;
         ctx.drawImage(img, 0, 0, boardWidth, boardHeight);
 
-        const imageData = ctx.getImageData(0, 0, boardWidth, boardHeight).data;
+        const imageData = ctx.getImageData(0, 0, boardWidth, boardHeight);
+        const data = imageData.data;
+
         solutionBoard = [];
         playerBoard = [];
+        colorData = [];
 
         for (let y = 0; y < boardHeight; y++) {
           const row = [];
           const playerRow = [];
+          const colorRow = [];
           for (let x = 0; x < boardWidth; x++) {
             const index = (y * boardWidth + x) * 4;
-            const r = imageData[index];
-            const g = imageData[index + 1];
-            const b = imageData[index + 2];
+            const r = data[index];
+            const g = data[index + 1];
+            const b = data[index + 2];
             const avg = (r + g + b) / 3;
             row.push(avg < 128 ? 1 : 0);
             playerRow.push(0);
+            colorRow.push(`rgb(${r}, ${g}, ${b})`);
           }
           solutionBoard.push(row);
           playerBoard.push(playerRow);
+          colorData.push(colorRow);
         }
 
         displayBoard();
         displayClues();
-
-        // Draw pixelated solution image
-        const solutionImg = document.getElementById('solutionImage');
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = boardWidth;
-        tempCanvas.height = boardHeight;
-        const tempCtx = tempCanvas.getContext('2d');
-        tempCtx.drawImage(img, 0, 0, boardWidth, boardHeight);
-        solutionImg.src = tempCanvas.toDataURL();
-        solutionImg.style.width = boardWidth * tileSize + 'px';
-        solutionImg.style.height = boardHeight * tileSize + 'px';
-        solutionImg.style.display = 'none';
       };
 
       img.src = URL.createObjectURL(fileInput.files[0]);
@@ -205,7 +181,6 @@
       const rowClues = computeClues(solutionBoard);
       const colClues = computeClues(solutionBoard, true);
 
-      // Row Clues
       const rowCluesDiv = document.getElementById('rowClues');
       rowCluesDiv.innerHTML = '';
       rowClues.forEach(clue => {
@@ -218,7 +193,6 @@
         rowCluesDiv.appendChild(div);
       });
 
-      // Column Clues
       const colCluesDiv = document.getElementById('colClues');
       colCluesDiv.innerHTML = '';
       const maxClueHeight = Math.max(...colClues.map(c => c.length));
@@ -274,11 +248,15 @@
         }
       }
       alert("🎉 You solved it!");
-      document.getElementById('solutionImage').style.display = 'block';
     }
 
     function revealAnswer() {
-      document.getElementById('solutionImage').style.display = 'block';
+      const boardTiles = document.querySelectorAll('#board .tile');
+      boardTiles.forEach(tile => {
+        const x = parseInt(tile.dataset.x);
+        const y = parseInt(tile.dataset.y);
+        tile.style.backgroundColor = colorData[y][x];
+      });
     }
   </script>
 </body>
