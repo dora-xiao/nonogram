@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Playable Nonogram</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+    }
+
+    #controls {
+      margin-bottom: 10px;
+    }
+
+    #nonogramArea {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      grid-template-rows: auto 1fr;
+      gap: 0px;
+      position: relative;
+    }
+
+    #colClues {
+      grid-column: 2;
+      grid-row: 1;
+      display: grid;
+      justify-content: start;
+      align-items: end;
+      z-index: 2;
+    }
+
+    #rowClues {
+      grid-column: 1;
+      grid-row: 2;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      z-index: 2;
+    }
+
+    #boardWrapper {
+      grid-column: 2;
+      grid-row: 2;
+      position: relative;
+    }
+
+    #board {
+      display: grid;
+      z-index: 2;
+      position: relative;
+    }
+
+    #solutionImage {
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 1;
+      display: none;
+      image-rendering: pixelated;
+    }
+
+    .tile {
+      width: 25px;
+      height: 25px;
+      border: 1px solid #ccc;
+      box-sizing: border-box;
+      background-color: white;
+      cursor: pointer;
+    }
+
+    .tile.on {
+      background-color: grey;
+    }
+
+    .tile.solution {
+      background-color: limegreen;
+    }
+
+    .clue {
+      font-size: 11px;
+      text-align: right;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      padding-right: 2px;
+      vertical-align: middle;
+    }
+
+    canvas, #solutionImage {
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>Playable Nonogram</h1>
+  <div id="controls">
+    <input type="file" id="imagePicker" accept="image/*" />
+    <input type="number" id="boardWidth" placeholder="Board width (e.g. 10)" />
+    <button onclick="generateNonogram()">Generate Nonogram</button>
+    <button onclick="revealAnswer()">Reveal Answer</button>
+  </div>
+
+  <canvas id="hiddenCanvas" style="display:none;"></canvas>
+
+  <div id="nonogramArea">
+    <div id="colClues"></div>
+    <div id="rowClues"></div>
+    <div id="boardWrapper">
+      <img id="solutionImage" />
+      <div id="board"></div>
+    </div>
+  </div>
+
+  <script>
+    let solutionBoard = [];
+    let playerBoard = [];
+    let boardWidth = 0;
+    let boardHeight = 0;
+    let tileSize = 25;
+
+    function generateNonogram() {
+      const fileInput = document.getElementById('imagePicker');
+      boardWidth = parseInt(document.getElementById('boardWidth').value);
+      const canvas = document.getElementById('hiddenCanvas');
+      const ctx = canvas.getContext('2d');
+
+      if (!fileInput.files[0] || isNaN(boardWidth) || boardWidth <= 0) {
+        alert('Please upload an image and enter a valid board width.');
+        return;
+      }
+
+      const img = new Image();
+      img.onload = () => {
+        const scale = boardWidth / img.width;
+        boardHeight = Math.round(img.height * scale);
+        canvas.width = boardWidth;
+        canvas.height = boardHeight;
+        ctx.drawImage(img, 0, 0, boardWidth, boardHeight);
+
+        const imageData = ctx.getImageData(0, 0, boardWidth, boardHeight).data;
+        solutionBoard = [];
+        playerBoard = [];
+
+        for (let y = 0; y < boardHeight; y++) {
+          const row = [];
+          const playerRow = [];
+          for (let x = 0; x < boardWidth; x++) {
+            const index = (y * boardWidth + x) * 4;
+            const r = imageData[index];
+            const g = imageData[index + 1];
+            const b = imageData[index + 2];
+            const avg = (r + g + b) / 3;
+            row.push(avg < 128 ? 1 : 0);
+            playerRow.push(0);
+          }
+          solutionBoard.push(row);
+          playerBoard.push(playerRow);
+        }
+
+        displayBoard();
+        displayClues();
+
+        // Draw pixelated solution image
+        const solutionImg = document.getElementById('solutionImage');
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = boardWidth;
+        tempCanvas.height = boardHeight;
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCtx.drawImage(img, 0, 0, boardWidth, boardHeight);
+        solutionImg.src = tempCanvas.toDataURL();
+        solutionImg.style.width = boardWidth * tileSize + 'px';
+        solutionImg.style.height = boardHeight * tileSize + 'px';
+        solutionImg.style.display = 'none';
+      };
+
+      img.src = URL.createObjectURL(fileInput.files[0]);
+    }
+
+    function computeClues(board, isColumn = false) {
+      const clues = [];
+      const sizeOuter = isColumn ? board[0].length : board.length;
+      const sizeInner = isColumn ? board.length : board[0].length;
+
+      for (let i = 0; i < sizeOuter; i++) {
+        const clue = [];
+        let count = 0;
+        for (let j = 0; j < sizeInner; j++) {
+          const cell = isColumn ? board[j][i] : board[i][j];
+          if (cell === 1) {
+            count++;
+          } else if (count > 0) {
+            clue.push(count);
+            count = 0;
+          }
+        }
+        if (count > 0) clue.push(count);
+        clues.push(clue.length ? clue : [0]);
+      }
+      return clues;
+    }
+
+    function displayClues() {
+      const rowClues = computeClues(solutionBoard);
+      const colClues = computeClues(solutionBoard, true);
+
+      // Row Clues
+      const rowCluesDiv = document.getElementById('rowClues');
+      rowCluesDiv.innerHTML = '';
+      rowClues.forEach(clue => {
+        const div = document.createElement('div');
+        div.className = 'clue';
+        div.style.height = tileSize + 'px';
+        div.style.lineHeight = tileSize + 'px';
+        div.style.width = '60px';
+        div.innerText = clue.join(' ');
+        rowCluesDiv.appendChild(div);
+      });
+
+      // Column Clues
+      const colCluesDiv = document.getElementById('colClues');
+      colCluesDiv.innerHTML = '';
+      const maxClueHeight = Math.max(...colClues.map(c => c.length));
+      colCluesDiv.style.gridTemplateColumns = `repeat(${colClues.length}, ${tileSize}px)`;
+      colCluesDiv.style.gridTemplateRows = `repeat(${maxClueHeight}, 14px)`;
+
+      for (let row = 0; row < maxClueHeight; row++) {
+        for (let col = 0; col < colClues.length; col++) {
+          const clue = colClues[col];
+          const div = document.createElement('div');
+          div.className = 'clue';
+          div.style.width = tileSize + 'px';
+          div.style.height = '14px';
+          div.style.textAlign = 'center';
+          const value = clue[clue.length - maxClueHeight + row] ?? '';
+          div.innerText = value;
+          colCluesDiv.appendChild(div);
+        }
+      }
+    }
+
+    function displayBoard() {
+      const boardDiv = document.getElementById('board');
+      boardDiv.innerHTML = '';
+      boardDiv.style.gridTemplateColumns = `repeat(${boardWidth}, ${tileSize}px)`;
+      boardDiv.style.width = boardWidth * tileSize + 'px';
+      boardDiv.style.height = boardHeight * tileSize + 'px';
+
+      for (let y = 0; y < boardHeight; y++) {
+        for (let x = 0; x < boardWidth; x++) {
+          const div = document.createElement('div');
+          div.className = 'tile';
+          div.dataset.x = x;
+          div.dataset.y = y;
+          div.addEventListener('click', toggleTile);
+          boardDiv.appendChild(div);
+        }
+      }
+    }
+
+    function toggleTile(e) {
+      const x = parseInt(e.target.dataset.x);
+      const y = parseInt(e.target.dataset.y);
+      playerBoard[y][x] = 1 - playerBoard[y][x];
+      e.target.classList.toggle('on');
+      checkForWin();
+    }
+
+    function checkForWin() {
+      for (let y = 0; y < boardHeight; y++) {
+        for (let x = 0; x < boardWidth; x++) {
+          if (playerBoard[y][x] !== solutionBoard[y][x]) return;
+        }
+      }
+      alert("🎉 You solved it!");
+      document.getElementById('solutionImage').style.display = 'block';
+    }
+
+    function revealAnswer() {
+      document.getElementById('solutionImage').style.display = 'block';
+    }
+  </script>
+</body>
+</html>
